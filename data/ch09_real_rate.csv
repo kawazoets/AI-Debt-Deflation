@@ -1,0 +1,4 @@
+nominal_rate_pct,expected_inflation_pct,real_rate_pct
+4.0,3.0,0.9709
+2.0,0,2.0
+0,-2.0,2.0408
