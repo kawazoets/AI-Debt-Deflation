@@ -1,0 +1,5 @@
+metric,period,value,unit,source,precision,verification_status
+private_credit_share_nonfinancial_corporate_debt,2012,1,percent,Federal Reserve research 2026-10-16,approximate,prior_draft_pending_source_recheck
+private_credit_share_nonfinancial_corporate_debt,2025Q4,6,percent,Federal Reserve research 2026-10-16,approximate,prior_draft_pending_source_recheck
+bank_borrowing_share_bdc_debt,approximately_2016,20,percent,Federal Reserve research 2026-08-07,approximate,prior_draft_pending_source_recheck
+bank_borrowing_share_bdc_debt,approximately_2026,40,percent,Federal Reserve research 2026-08-07,approximate,prior_draft_pending_source_recheck
