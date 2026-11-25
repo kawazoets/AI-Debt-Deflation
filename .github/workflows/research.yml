@@ -21,7 +21,15 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install pandas matplotlib
-      - run: python research.py
+      - name: Retrieve official FRED data
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          if [ -z "$FRED_API_KEY" ]; then
+            echo '::error::Configure repository Actions secret FRED_API_KEY before running.'
+            exit 1
+          fi
+          python research.py
       - name: Save results
         run: |
           git config user.name "github-actions[bot]"
