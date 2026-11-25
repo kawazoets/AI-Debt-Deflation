@@ -5,15 +5,20 @@ Published comparison: https://www.federalreserve.gov/publications/files/scf26.pd
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 from io import BytesIO
 from zipfile import ZipFile
 Path("data").mkdir(exist_ok=True)
 rows=[]
 for year in (2022,2025):
     url=f"https://www.federalreserve.gov/econres/files/scfp{year}excel.zip"
-    with urlopen(url,timeout=120) as response:
-        z=ZipFile(BytesIO(response.read()))
+    local=Path(f"data/scfp{year}excel.zip")
+    if local.exists():
+        z=ZipFile(local)
+    else:
+        req=Request(url, headers={"User-Agent":"AI-Debt-Deflation research (public data)", "Accept":"application/zip, */*"})
+        with urlopen(req,timeout=120) as response:
+            z=ZipFile(BytesIO(response.read()))
     with z.open(next(n for n in z.namelist() if n.lower().endswith(".csv"))) as f:
         d=pd.read_csv(f,low_memory=False)
     d.columns=d.columns.str.lower()
