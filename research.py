@@ -69,6 +69,9 @@ def load_series(item):
 with ThreadPoolExecutor(max_workers=4) as pool:
     frames = list(pool.map(load_series, SERIES.items()))
 df = pd.concat(frames, axis=1).sort_index()
+# CMDEBT is in millions of USD; BEA income is in billions of USD.
+# CMDEBT includes households and nonprofit organizations.
+df["household_debt_billion"] = df["household_debt_billion"] / 1000
 df["household_debt_to_income_pct"] = 100*df.household_debt_billion/df.disposable_income_billion_saar
 df["household_debt_to_compensation_pct"] = 100*df.household_debt_billion/df.employee_compensation_billion_saar
 df["estimated_annual_debt_service_billion"] = df.debt_service_pct/100*df.disposable_income_billion_saar
