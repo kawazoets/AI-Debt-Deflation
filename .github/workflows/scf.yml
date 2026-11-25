@@ -1,0 +1,28 @@
+name: SCF household stress
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scf_analysis.py
+      - .github/workflows/scf.yml
+permissions:
+  contents: write
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pandas numpy
+      - run: python scf_analysis.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/scf_group_stress.csv
+          if ! git diff --cached --quiet; then
+            git commit -m "Compute SCF group stress estimates"
+            git pull --rebase
+            git push
+          fi
