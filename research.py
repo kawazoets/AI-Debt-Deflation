@@ -21,27 +21,53 @@ SERIES = {
 Path("data").mkdir(exist_ok=True)
 Path("charts").mkdir(exist_ok=True)
 frames = []
-for name, code in SERIES.items():
-    url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={code}&cosd=2005-01-01"
-    print(f"Downloading {code}", flush=True)
-    for attempt in range(4):
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+import re
+from urllib.parse import urlencode
+import json
+import os
+
+def load_series(item):
+    name, code = item
+    urls = [
+        f"https://fred.stlouisfed.org/data/{code}.txt",
+        f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={code}&cosd=2005-01-01",
+    ]
+    key = os.getenv("FRED_API_KEY")
+    if key:
+        urls.insert(0, "https://api.stlouisfed.org/fred/series/observations?" + urlencode(dict(series_id=code, api_key=key, file_type="json", observation_start="2005-01-01")))
+    for url in urls:
         try:
-            with urlopen(Request(url, headers={"User-Agent":"AI-Debt-Deflation research (public data)", "Accept":"text/csv, */*"}), timeout=90) as response:
-                raw = pd.read_csv(BytesIO(response.read()))
-            s = pd.Series(pd.to_numeric(raw[code], errors="coerce").values,
-                          index=pd.to_datetime(raw.iloc[:,0]), name=name)
-            s = s.dropna()
-            if s.empty:
-                raise ValueError(f"No data: {code}")
-            raw.to_csv(f"data/{code}.csv", index=False)
-            # Monthly flows at annual rates are averaged, quarterly observations retained.
-            frames.append(s.groupby(s.index.to_period("Q")).mean())
-            break
+            with urlopen(Request(url, headers={"User-Agent":"Economic research data client", "Accept":"*/*"}), timeout=25) as response:
+                payload = response.read()
+            if url.startswith("https://api."):
+                raw = pd.DataFrame(json.loads(payload)["observations"])[["date","value"]].rename(columns={"date":"DATE","value":code})
+            elif url.endswith(".txt"):
+                matches = re.findall(r"(?m)^\s*(\d{4}-\d{2}-\d{2})\s+(-?\d+(?:\.\d+)?|\.)\s*$", payload.decode("utf-8"))
+                raw = pd.DataFrame(matches, columns=["DATE",code])
+            else:
+                raw = pd.read_csv(BytesIO(payload))
+            dates = pd.to_datetime(raw.iloc[:,0], errors="coerce")
+            values = pd.to_numeric(raw[code], errors="coerce")
+            good = dates.notna() & values.notna() & (dates >= pd.Timestamp("2005-01-01"))
+            raw = pd.DataFrame({"DATE":dates[good],code:values[good]}).drop_duplicates("DATE").sort_values("DATE")
+            if len(raw)<50:
+                raise ValueError("Insufficient valid observations")
+            s = pd.Series(raw[code].values,index=pd.DatetimeIndex(raw.DATE),name=name)
+            raw.to_csv(f"data/{code}.csv",index=False)
+            print(f"{code}: retrieved {len(raw)} observations through {raw.DATE.max().date()}",flush=True)
+            q = s.groupby(s.index.to_period("Q"))
+            result = q.mean()
+            if len(s)>1 and s.index.to_series().diff().median().days<45:
+                result = result.where(q.count()==3)
+            return result
         except Exception as exc:
-            print(f"{code} attempt {attempt+1}: {exc}", flush=True)
-            if attempt == 3:
-                raise RuntimeError(f"Unable to retrieve {code}") from exc
-            time.sleep(5*(attempt+1))
+            print(f"{code}: {url.split('?')[0]} failed ({type(exc).__name__})",flush=True)
+    raise RuntimeError(f"No verified data retrieved for {code}")
+
+with ThreadPoolExecutor(max_workers=4) as pool:
+    frames = list(pool.map(load_series, SERIES.items()))
 df = pd.concat(frames, axis=1).sort_index()
 df["household_debt_to_income_pct"] = 100*df.household_debt_billion/df.disposable_income_billion_saar
 df["household_debt_to_compensation_pct"] = 100*df.household_debt_billion/df.employee_compensation_billion_saar
