@@ -23,23 +23,25 @@ Path("charts").mkdir(exist_ok=True)
 frames = []
 for name, code in SERIES.items():
     url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={code}&cosd=2005-01-01"
-    for attempt in range(3):
+    print(f"Downloading {code}", flush=True)
+    for attempt in range(4):
         try:
-            with urlopen(Request(url, headers={"User-Agent":"Mozilla/5.0"}), timeout=60) as response:
+            with urlopen(Request(url, headers={"User-Agent":"AI-Debt-Deflation research (public data)", "Accept":"text/csv, */*"}), timeout=90) as response:
                 raw = pd.read_csv(BytesIO(response.read()))
-            raw.to_csv(f"data/{code}.csv", index=False)
             s = pd.Series(pd.to_numeric(raw[code], errors="coerce").values,
                           index=pd.to_datetime(raw.iloc[:,0]), name=name)
             s = s.dropna()
             if s.empty:
                 raise ValueError(f"No data: {code}")
+            raw.to_csv(f"data/{code}.csv", index=False)
             # Monthly flows at annual rates are averaged, quarterly observations retained.
             frames.append(s.groupby(s.index.to_period("Q")).mean())
             break
-        except Exception:
-            if attempt == 2:
-                raise
-            time.sleep(5)
+        except Exception as exc:
+            print(f"{code} attempt {attempt+1}: {exc}", flush=True)
+            if attempt == 3:
+                raise RuntimeError(f"Unable to retrieve {code}") from exc
+            time.sleep(5*(attempt+1))
 df = pd.concat(frames, axis=1).sort_index()
 df["household_debt_to_income_pct"] = 100*df.household_debt_billion/df.disposable_income_billion_saar
 df["household_debt_to_compensation_pct"] = 100*df.household_debt_billion/df.employee_compensation_billion_saar
